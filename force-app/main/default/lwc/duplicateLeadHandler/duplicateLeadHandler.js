@@ -1,11 +1,10 @@
-import { LightningElement, track, api } from 'lwc';
+import { LightningElement, track, api, wire } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { refreshApex } from '@salesforce/apex';
 import getPotentialDuplicateLeads from '@salesforce/apex/DuplicateLeadHandler.getPotentialDuplicateLeads';
 import updateLeadRecords from '@salesforce/apex/DuplicateLeadHandler.updateLeadRecords';
 
 export default class HandleDuplicateLeads extends LightningElement {
-    @track duplicates = [];
     @track modalOpen = false;
     @track selectedLead = {};
     @track isLoading = false;
@@ -15,6 +14,20 @@ export default class HandleDuplicateLeads extends LightningElement {
     lastName = '';
     industry = '';
     
+    // Replace the duplicates track with wire
+    @wire(getPotentialDuplicateLeads, { 
+        lastName: '$lastName', 
+        industry: '$industry' 
+    })
+    wiredLeads(result) {
+        this.wiredLeadsResult = result;
+        if (result.data) {
+            this.duplicates = result.data;
+        } else if (result.error) {
+            this.handleSearchError(result.error);
+        }
+    }
+
     columns = [
         { label: 'First Name', fieldName: 'FirstName' },
         { label: 'Last Name', fieldName: 'LastName' },
@@ -135,16 +148,12 @@ export default class HandleDuplicateLeads extends LightningElement {
     }
 
     async handleSaveSuccess() {
-        // Close modal first
         this.modalOpen = false;
-        
-        // Show success toast
         this.showToast('Success', 'Lead updated successfully', 'success');
         
-        // Refresh the data
-        await this.refreshData();
+        // Refresh the wired data
+        await refreshApex(this.wiredLeadsResult);
         
-        // Reset state
         this.selectedLead = {};
     }
 
@@ -153,29 +162,8 @@ export default class HandleDuplicateLeads extends LightningElement {
         console.error('Error saving lead:', error);
     }
 
-    async refreshData() {
-        try {
-            const result = await getPotentialDuplicateLeads({
-                lastName: this.lastName,
-                industry: this.industry
-            });
-            this.duplicates = result || [];
-            if (this.duplicates.length === 0) {
-                this.showToast('Info', 'No duplicates found', 'info');
-            }
-        } catch (error) {
-            this.handleSearchError(error);
-        }
-    }
-
-    showToast(title, message, variant, mode = 'dismissable') {
-        this.dispatchEvent(
-            new ShowToastEvent({
-                title,
-                message,
-                variant,
-                mode
-            })
-        );
+    handleSearchError(error) {
+        this.showToast('Error', error.body?.message || 'Error fetching duplicates', 'error', 'sticky');
+        console.error('Error fetching duplicates:', error);
     }
 }
