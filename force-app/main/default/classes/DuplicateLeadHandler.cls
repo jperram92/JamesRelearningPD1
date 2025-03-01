@@ -62,49 +62,69 @@ public with sharing class DuplicateLeadHandler {
 
     @AuraEnabled
     public static void mergeLeads(Id masterRecordId, List<Id> duplicateRecordIds, Map<String, Id> fieldSelections) {
-        // Validate permissions
         if (!Schema.sObjectType.Lead.isMergeable()) {
             throw new AuraHandledException('Insufficient permissions to merge leads');
         }
 
         try {
-            // Query for all leads involved in the merge
+            // Query all leads with necessary fields
             List<Lead> allLeads = [
-                SELECT Id, Description 
+                SELECT Id, FirstName, LastName, Industry, Email, Phone, Description,
+                       Company, Status, Rating, Title
                 FROM Lead 
-                WHERE Id = :masterRecordId 
-                OR Id IN :duplicateRecordIds
-            ];
+                WHERE Id = :masterRecordId OR Id IN :duplicateRecordIds];
 
-            // Prepare the concatenated description
-            String masterDescription = '';
+            // Identify master record and duplicates
+            Lead masterRecord = null;
+            List<Lead> duplicateRecords = new List<Lead>();
             for (Lead lead : allLeads) {
-                if (lead.Description != null) {
-                    if (lead.Id == masterRecordId) {
-                        // Put master record description first
-                        masterDescription = lead.Description + '\n\n';
-                    } else {
-                        // Add merged record descriptions
-                        masterDescription += 'Merged from ' + lead.Id + ':\n' + 
-                                          lead.Description + '\n\n';
+                if (lead.Id == masterRecordId) {
+                    masterRecord = lead;
+                } else {
+                    duplicateRecords.add(lead);
+                }
+            }
+
+            if (masterRecord == null) {
+                throw new AuraHandledException('Master record not found');
+            }
+
+            // Build combined description
+            String combinedDescription = '';
+            if (String.isNotBlank(masterRecord.Description)) {
+                combinedDescription = 'Master Record Description:\n' + masterRecord.Description + '\n\n';
+            }
+            
+            for (Lead dupe : duplicateRecords) {
+                if (String.isNotBlank(dupe.Description)) {
+                    combinedDescription += 'Merged from ' + dupe.FirstName + ' ' + dupe.LastName + ':\n' 
+                        + dupe.Description + '\n\n';
+                }
+            }
+            
+            // Apply field selections
+            for (String fieldName : fieldSelections.keySet()) {
+                Id selectedLeadId = fieldSelections.get(fieldName);
+                if (selectedLeadId != masterRecord.Id) {
+                    for (Lead lead : duplicateRecords) {
+                        if (lead.Id == selectedLeadId) {
+                            masterRecord.put(fieldName, lead.get(fieldName));
+                            break;
+                        }
                     }
                 }
             }
 
-            // Update master record with concatenated description
-            Lead masterLead = new Lead(
-                Id = masterRecordId,
-                Description = masterDescription.trim()
-            );
-            update masterLead;
+            // Set the combined description
+            if (String.isNotBlank(combinedDescription)) {
+                masterRecord.Description = combinedDescription.trim();
+            }
 
             // Perform the merge
-            merge masterLead duplicateRecordIds;
+            Database.merge(masterRecord, duplicateRecordIds, false);
 
         } catch (Exception e) {
-            String errorMessage = 'Error during merge: ' + e.getMessage();
-            System.debug(LoggingLevel.ERROR, errorMessage);
-            throw new AuraHandledException(errorMessage);
+            throw new AuraHandledException('Error merging leads: ' + e.getMessage());
         }
     }
 }
