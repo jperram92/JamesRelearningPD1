@@ -6,9 +6,48 @@
   @last modified by  : jamesperram@gmail.com
 -->
 <template>
+    <!-- Add instructions above the buttons -->
+    <div class="slds-box slds-theme_default slds-m-bottom_medium">
+        <p class="slds-text-heading_small">How to merge records:</p>
+        <ol class="slds-list_ordered">
+            <li>Search for duplicate leads using Last Name and Industry</li>
+            <li>Click the checkmark icon next to records you want to merge (2-3 records)</li>
+            <li>Click "Merge Selected" when ready</li>
+        </ol>
+    </div>
+
+    <!-- Existing search inputs -->
     <lightning-input label="Last Name" value={lastName} onchange={handleLastNameChange}></lightning-input>
     <lightning-input label="Industry" value={industry} onchange={handleIndustryChange}></lightning-input>
-    <lightning-button label="Search Duplicates" onclick={handleSearch}></lightning-button>
+    
+    <div class="slds-m-top_medium">
+        <lightning-button label="Search Duplicates" onclick={handleSearch}></lightning-button>
+        <lightning-button 
+            label="Merge Selected" 
+            onclick={handleMergeClick}
+            disabled={isMergeDisabled}
+            variant="brand"
+            class="slds-m-left_x-small">
+        </lightning-button>
+        <lightning-button 
+            label="Clear Selection" 
+            onclick={handleClearSelection}
+            disabled={isClearDisabled}
+            class="slds-m-left_x-small">
+        </lightning-button>
+    </div>
+
+    <!-- Add selected records display -->
+    <div class="slds-m-vertical_medium">
+        <template if:true={selectedRows.length}>
+            <p class="slds-text-heading_small">Selected Records ({selectedRows.length}):</p>
+            <template for:each={selectedRows} for:item="row">
+                <div key={row.Id} class="slds-pill slds-m-around_xx-small">
+                    <span class="slds-pill__label">{row.FirstName} {row.LastName}</span>
+                </div>
+            </template>
+        </template>
+    </div>
 
     <template if:true={duplicates}>
         <lightning-card title="Potential Duplicates">
@@ -68,6 +107,49 @@
                         onclick={handleModalClose}
                         variant="neutral"
                         disabled={isLoading}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showMergeModal}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open slds-modal_large">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-text-heading_medium">Merge Records</h2>
+                    <button class="slds-button slds-button_icon slds-modal__close" onclick={handleMergeModalClose}>
+                        <lightning-icon icon-name="utility:close" size="small"></lightning-icon>
+                    </button>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template for:each={mergeFieldRows} for:item="field">
+                        <div key={field.fieldName} class="slds-form-element slds-m-bottom_small">
+                            <label class="slds-form-element__label">{field.label}</label>
+                            <div class="slds-form-element__control">
+                                <lightning-radio-group
+                                    name={field.fieldName}
+                                    options={field.options}
+                                    value={field.selectedValue}
+                                    onchange={handleFieldSelection}
+                                    type="radio">
+                                </lightning-radio-group>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={handleMergeModalClose}
+                        class="slds-m-right_x-small">
+                    </lightning-button>
+                    <lightning-button
+                        label="Merge"
+                        variant="brand"
+                        onclick={handleMergeConfirm}
+                        disabled={isMergeConfirmDisabled}>
                     </lightning-button>
                 </footer>
             </div>

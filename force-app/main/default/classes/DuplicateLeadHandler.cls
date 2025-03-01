@@ -14,40 +14,19 @@ public with sharing class DuplicateLeadHandler {
             throw new SecurityException('User does not have read access to Lead records.');
         }
 
-        // Normalize the input (make it case-insensitive and remove leading/trailing spaces)
-        String normalizedLastName = lastName != null ? lastName.trim().toLowerCase() : '';
-        String normalizedIndustry = industry != null ? industry.trim().toLowerCase() : '';
+        // Normalize the input and add wildcards
+        String searchLastName = '%' + (lastName != null ? lastName.trim() : '') + '%';
+        String searchIndustry = '%' + (industry != null ? industry.trim() : '') + '%';
 
-        // Query Leads that have the same last name and industry (case-sensitive, to be compared in Apex)
-        List<Lead> leads = [
-            SELECT Id, FirstName, LastName, Industry, CreatedDate
+        // Query only matching LastName field
+        return [
+            SELECT Id, FirstName, LastName, Industry, CreatedDate, Email, Phone
             FROM Lead
-            WHERE LastName != null
-                AND Industry != null
-                AND LastName != ''
-                AND Industry != ''
+            WHERE LastName LIKE :searchLastName
+            AND Industry LIKE :searchIndustry
+            ORDER BY CreatedDate DESC
             LIMIT 100
         ];
-
-        // Prepare the list for duplicate leads
-        List<Lead> duplicateLeads = new List<Lead>();
-
-        // Check for potential duplicates by comparing the fields in Apex (case-insensitive)
-        for (Lead l : leads) {
-            if (l.LastName != null && l.Industry != null) {
-                // Normalize the lead's LastName and Industry to lowercase for case-insensitive comparison
-                String leadLastName = l.LastName.trim().toLowerCase();
-                String leadIndustry = l.Industry.trim().toLowerCase();
-
-                // Compare the normalized values (checking if either lastName or industry matches)
-                if (leadLastName == normalizedLastName || leadIndustry == normalizedIndustry) {
-                    duplicateLeads.add(l);
-                }
-            }
-        }
-
-        // Return the potential duplicate leads
-        return duplicateLeads;
     }
 
     @AuraEnabled
@@ -77,6 +56,54 @@ public with sharing class DuplicateLeadHandler {
             // Catch any other unexpected exceptions
             String errorMessage = 'Unexpected error: ' + e.getMessage();
             System.debug(errorMessage);
+            throw new AuraHandledException(errorMessage);
+        }
+    }
+
+    @AuraEnabled
+    public static void mergeLeads(Id masterRecordId, List<Id> duplicateRecordIds, Map<String, Id> fieldSelections) {
+        // Validate permissions
+        if (!Schema.sObjectType.Lead.isMergeable()) {
+            throw new AuraHandledException('Insufficient permissions to merge leads');
+        }
+
+        try {
+            // Query for all leads involved in the merge
+            List<Lead> allLeads = [
+                SELECT Id, Description 
+                FROM Lead 
+                WHERE Id = :masterRecordId 
+                OR Id IN :duplicateRecordIds
+            ];
+
+            // Prepare the concatenated description
+            String masterDescription = '';
+            for (Lead lead : allLeads) {
+                if (lead.Description != null) {
+                    if (lead.Id == masterRecordId) {
+                        // Put master record description first
+                        masterDescription = lead.Description + '\n\n';
+                    } else {
+                        // Add merged record descriptions
+                        masterDescription += 'Merged from ' + lead.Id + ':\n' + 
+                                          lead.Description + '\n\n';
+                    }
+                }
+            }
+
+            // Update master record with concatenated description
+            Lead masterLead = new Lead(
+                Id = masterRecordId,
+                Description = masterDescription.trim()
+            );
+            update masterLead;
+
+            // Perform the merge
+            merge masterLead duplicateRecordIds;
+
+        } catch (Exception e) {
+            String errorMessage = 'Error during merge: ' + e.getMessage();
+            System.debug(LoggingLevel.ERROR, errorMessage);
             throw new AuraHandledException(errorMessage);
         }
     }
