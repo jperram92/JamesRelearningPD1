@@ -56,12 +56,28 @@ public with sharing class DuplicateLeadHandler {
         if (!Schema.sObjectType.Lead.isUpdateable()) {
             throw new SecurityException('User does not have update access to Lead records.');
         }
+        
+        // Check if the required fields are populated (e.g., 'FirstName', 'LastName', 'Industry')
+        for (Lead lead : updatedLeads) {
+            if (String.isEmpty(lead.FirstName) || String.isEmpty(lead.LastName) || String.isEmpty(lead.Industry)) {
+                throw new AuraHandledException('Required fields are missing: FirstName, LastName, and/or Industry.');
+            }
+        }
 
         try {
-            update updatedLeads; // Perform the update operation
+            // Perform the update operation
+            update updatedLeads; 
             return updatedLeads; // Return the updated leads
+        } catch (DmlException e) {
+            // Catch DML exceptions and log the error message
+            String errorMessage = 'Error updating records: ' + e.getMessage();
+            System.debug(errorMessage);
+            throw new AuraHandledException(errorMessage);
         } catch (Exception e) {
-            throw new AuraHandledException('Error updating records: ' + e.getMessage());
+            // Catch any other unexpected exceptions
+            String errorMessage = 'Unexpected error: ' + e.getMessage();
+            System.debug(errorMessage);
+            throw new AuraHandledException(errorMessage);
         }
     }
 }

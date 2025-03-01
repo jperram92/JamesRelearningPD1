@@ -21,6 +21,10 @@
         </lightning-card>
     </template>
 
+    <template if:true={isLoading}>
+        <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+    </template>
+
     <!-- Modal for editing -->
     <template if:true={modalOpen}>
         <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
@@ -56,12 +60,14 @@
                     <lightning-button 
                         label="Save"
                         onclick={handleSave}
-                        variant="brand">
+                        variant="brand"
+                        disabled={isLoading}>
                     </lightning-button>
                     <lightning-button 
                         label="Cancel"
                         onclick={handleModalClose}
-                        variant="neutral">
+                        variant="neutral"
+                        disabled={isLoading}>
                     </lightning-button>
                 </footer>
             </div>
