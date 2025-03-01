@@ -6,6 +6,7 @@
  * @last modified by  : jamesperram@gmail.com
 **/
 public with sharing class DuplicateLeadHandler {
+    
     @AuraEnabled(cacheable=true)
     public static List<Lead> getPotentialDuplicateLeads(String lastName, String industry) {
         // Check for read access to the Lead object
@@ -38,9 +39,6 @@ public with sharing class DuplicateLeadHandler {
                 String leadLastName = l.LastName.trim().toLowerCase();
                 String leadIndustry = l.Industry.trim().toLowerCase();
 
-                // Debug log to check each Lead during the comparison
-                System.debug('Comparing Lead: ' + leadLastName + ', ' + leadIndustry);
-
                 // Compare the normalized values (checking if either lastName or industry matches)
                 if (leadLastName == normalizedLastName || leadIndustry == normalizedIndustry) {
                     duplicateLeads.add(l);
@@ -48,10 +46,22 @@ public with sharing class DuplicateLeadHandler {
             }
         }
 
-        // Debug log to check the final list of duplicate leads
-        System.debug('Duplicate Leads: ' + duplicateLeads);
-
         // Return the potential duplicate leads
         return duplicateLeads;
+    }
+
+    @AuraEnabled
+    public static List<Lead> updateLeadRecords(List<Lead> updatedLeads) {
+        // Validate CRUD permissions for the Lead object
+        if (!Schema.sObjectType.Lead.isUpdateable()) {
+            throw new SecurityException('User does not have update access to Lead records.');
+        }
+
+        try {
+            update updatedLeads; // Perform the update operation
+            return updatedLeads; // Return the updated leads
+        } catch (Exception e) {
+            throw new AuraHandledException('Error updating records: ' + e.getMessage());
+        }
     }
 }
