@@ -6,17 +6,15 @@
   @last modified by  : jamesperram@gmail.com
 -->
 <template>
-    <lightning-input label="Account Name" value={accountName} onchange={handleNameChange}></lightning-input>
-    <lightning-input label="Account Email" value={accountEmail} onchange={handleEmailChange}></lightning-input>
+    <lightning-input label="Last Name" value={lastName} onchange={handleLastNameChange}></lightning-input>
+    <lightning-input label="Industry" value={industry} onchange={handleIndustryChange}></lightning-input>
     <lightning-button label="Search Duplicates" onclick={handleSearch}></lightning-button>
 
     <template if:true={duplicates}>
         <lightning-card title="Potential Duplicates">
             <template for:each={duplicates} for:item="dup">
-                <p key={dup.RecordId}>
-                    {dup.RecordId} - Duplicate Rule ID: {dup.DuplicateRuleId} 
-                    <lightning-button label="Merge" onclick={handleMerge}></lightning-button>
-                    <lightning-button label="Dismiss" onclick={handleDismiss}></lightning-button>
+                <p key={dup.Id}>
+                    {dup.FirstName} {dup.LastName} - {dup.Industry} (Created: {dup.CreatedDate})
                 </p>
             </template>
         </lightning-card>
